@@ -58,6 +58,14 @@ class InterviewRequest(BaseModel):
     role: str
     difficulty: Optional[str] = "Easy"
     session_id: Optional[str] = None
+    class InterviewRequest(BaseModel):
+      role: str
+    difficulty: Optional[str] = "Easy"
+    session_id: Optional[str] = None
+    user_id: Optional[int] = None
+    answers: List[InterviewAnswer]
+    integrity_score: int = 100
+    eye_contact_score: int = 100
     answers: List[InterviewAnswer]
     integrity_score: int = 100
     eye_contact_score: int = 100
@@ -115,6 +123,7 @@ def evaluate_interview(request: InterviewRequest):
         history_id = save_interview_result({
             **result,
             "session_id": request.session_id,
+            "user_id": 1,
         })
         result["history_id"] = history_id   # frontend ko milega PDF ke liye
     except Exception as e:
@@ -125,11 +134,10 @@ def evaluate_interview(request: InterviewRequest):
 
 
 # ── History endpoints ──────────────────────────────────────
-
 @router.get("/history")
-def get_history():
-    from database.model import get_all_history
-    return {"history": get_all_history()}
+def get_history(user_id: int=1):
+    from database.model import get_history_by_user
+    return {"history": get_history_by_user(user_id)}
 
 
 @router.get("/history/{history_id}/pdf")

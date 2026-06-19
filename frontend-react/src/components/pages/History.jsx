@@ -26,21 +26,23 @@ function History({ setActivePage, activePage = "history", theme = "dark", user, 
     mutedText: isDark ? "#5A5550" : "#B0AAA4",
   };
 
-  useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => { 
+  if (user) fetchHistory(); 
+}, [user]);
 
-  async function fetchHistory() {
-    setLoading(true);
-    try {
-      const res = await fetch("http://127.0.0.1:8000/history");
-      const data = await res.json();
-      setHistory(data.history || []);
-    } catch {
-      const local = JSON.parse(localStorage.getItem("interviewHistory")) || [];
-      setHistory(local);
-    } finally {
-      setLoading(false);
-    }
+ async function fetchHistory() {
+  setLoading(true);
+  try {
+    const res = await fetch(`http://127.0.0.1:8000/history?user_id=${user.id}`);
+    const data = await res.json();
+    setHistory(data.history || []);
+  } catch {
+    const local = JSON.parse(localStorage.getItem("interviewHistory")) || [];
+    setHistory(local);
+  } finally {
+    setLoading(false);
   }
+}
 
   async function downloadPDF(item) {
     setDownloading(item.id);

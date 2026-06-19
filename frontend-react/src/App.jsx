@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
 import Login from "./components/pages/Login";
+import ResetPassword from "./components/pages/ResetPassword";
 import Interview from "./components/pages/Interview";
 import Report from "./components/pages/Report";
 import Dashboard from "./components/pages/Dashboard";
@@ -20,6 +21,11 @@ function App() {
   const [result, setResult] = useState(null);
   const [activePage, setActivePage] = useState("dashboard");
   const [theme, setTheme] = useState("dark");
+
+  // Check if this is a password reset link
+  const urlParams = new URLSearchParams(window.location.search);
+  const resetToken = urlParams.get("token");
+  const isResetPage = window.location.pathname.includes("reset-password") || !!resetToken;
 
   // Check existing login on load
   useEffect(() => {
@@ -96,9 +102,10 @@ function App() {
     }
   }
 
-  function handleLoginSuccess(loggedInUser) {
-    setUser(loggedInUser);
-  }
+ function handleLoginSuccess(loggedInUser) {
+  localStorage.setItem("currentUser", JSON.stringify(loggedInUser));
+  setUser(loggedInUser);
+}
 
   function handleLogout() {
     localStorage.removeItem("currentUser");
@@ -111,6 +118,19 @@ function App() {
 
   // Still checking localStorage — avoid flash of login page
   if (!checkedAuth) return null;
+
+  // Password reset link — show this before login check
+  if (isResetPage && resetToken) {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onDone={() => {
+          window.history.replaceState({}, "", "/");
+          window.location.reload();
+        }}
+      />
+    );
+  }
 
   // Not logged in — show Login/Signup page first
   if (!user) {
@@ -152,6 +172,7 @@ function App() {
         question={question}
         onResult={handleResult}
         theme={theme}
+        user={user}
       />
     );
   }

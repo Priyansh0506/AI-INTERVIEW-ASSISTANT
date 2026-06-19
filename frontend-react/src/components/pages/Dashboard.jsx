@@ -40,10 +40,9 @@ function Dashboard({
   useEffect(() => {
     fetchStats();
   }, []);
-
-  async function fetchStats() {
+async function fetchStats() {
     try {
-      const res = await fetch("http://127.0.0.1:8000/history");
+      const res = await fetch(`http://127.0.0.1:8000/history?user_id=${user.id}`);
       const data = await res.json();
       const history = data.history || [];
       if (history.length > 0) {
@@ -55,6 +54,9 @@ function Dashboard({
           lastScore: scores[0],
         });
         setRecentSessions(history.slice(0, 3));
+      } else {
+        setStats({ total: 0, avgScore: 0, lastScore: 0 });
+        setRecentSessions([]);
       }
     } catch (e) {
       // silent
@@ -65,6 +67,14 @@ function Dashboard({
 
   async function startInterview() {
     setLoading(true);
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (e) {
+        console.error("Fullscreen error:", e);
+      }
+    }
     try {
       const res = await fetch(
         `http://127.0.0.1:8000/start-session?role=${encodeURIComponent(role)}&difficulty=${encodeURIComponent(difficulty)}`,
@@ -380,6 +390,7 @@ function Dashboard({
               exit={{ scale: 0.85, opacity: 0 }}
               onClick={e => e.stopPropagation()}
               style={{
+                position: "relative",
                 background: colors.card,
                 borderRadius: 16,
                 padding: "36px 40px",
@@ -471,7 +482,7 @@ function Dashboard({
                 </div>
               </div>
 
-             {/* Difficulty */}
+           {/* Difficulty */}
               <div style={{ marginBottom: 24 }}>
                 <label style={{
                   fontSize: "0.8rem", fontWeight: 600, color: colors.label,

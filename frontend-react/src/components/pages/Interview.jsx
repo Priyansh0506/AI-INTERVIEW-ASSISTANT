@@ -34,7 +34,7 @@ function speakQuestion(text, onEnd) {
     utterance.lang = preferred?.lang || "en-GB"
   }
 
-  const intro = new SpeechSynthesisUtterance("+ Alright, here is your question.")
+  const intro = new SpeechSynthesisUtterance("Alright, here is your question.")
   setVoice(intro)
   intro.rate = 0.85
   intro.pitch = 0.9
@@ -56,7 +56,7 @@ function speakQuestion(text, onEnd) {
   window.speechSynthesis.speak(question)
 }
 
-function Interview({ role, difficulty, sessionId, question, onResult, theme = "dark" }) {
+function Interview({ role, difficulty, sessionId, question, onResult, theme = "dark",user }) {
   const settings = getSettings()
   const TIMER_SECONDS = settings.timerSeconds
   const TOTAL_QUESTIONS = settings.numQuestions
@@ -176,7 +176,7 @@ function Interview({ role, difficulty, sessionId, question, onResult, theme = "d
   // auto-submit when timer runs out
 useEffect(() => {
   if (timeLeft === 0) {
-    submitAnswer()
+    submitAnswer(true)
   }
 }, [timeLeft])
 
@@ -184,7 +184,7 @@ useEffect(() => {
   useEffect(() => {
     if (warningCount >= WARNING_THRESHOLD) {
       alert("Interview ended due to too many warnings.")
-      submitAnswer()
+      submitAnswer(true)
     }
   }, [warningCount])
 
@@ -233,9 +233,9 @@ useEffect(() => {
     return inputMode === "type" ? manualText : answer
   }
 
-  async function submitAnswer() {
+  async function submitAnswer(isAutoSubmit = false) {
     const finalAnswer = getFinalAnswer()
-    if (!finalAnswer.trim()) {
+    if (!finalAnswer.trim() && !isAutoSubmit) {
       alert("Please provide your answer before submitting.")
       return
     }
@@ -244,7 +244,7 @@ useEffect(() => {
     window.speechSynthesis.cancel()
     setIsSpeaking(false)
 
-    const currentAnswer = { question, answer: finalAnswer }
+    const currentAnswer = { question, answer: finalAnswer.trim() || "No answer provided" }
     const updatedAnswers = [...allAnswers, currentAnswer]
     setAllAnswers(updatedAnswers)
     setLoading(true)
@@ -266,11 +266,12 @@ useEffect(() => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          role,
-          answers: updatedAnswers,
-          integrity_score: integrityScore,
-          eye_contact_score: eyeContactScore
-        })
+  role,
+  answers: updatedAnswers,
+  integrity_score: integrityScore,
+  eye_contact_score: eyeContactScore,
+  user_id: user?.id,
+})
       })
 
       const finalData = await res.json()

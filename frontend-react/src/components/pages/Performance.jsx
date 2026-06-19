@@ -23,12 +23,13 @@ function Performance({ setActivePage, activePage = "performance", theme = "dark"
     mutedText: isDark ? "#5A5550" : "#B0AAA4",
   };
 
-  useEffect(() => { fetchHistory(); }, []);
-
-  async function fetchHistory() {
+  useEffect(() => { 
+    fetchHistory();
+   }, [user]);
+async function fetchHistory() {
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/history");
+      const res = await fetch(`http://127.0.0.1:8000/history?user_id=${user.id}`);
       const data = await res.json();
       setHistory(data.history || []);
     } catch {

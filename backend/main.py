@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.question import router as question_router
@@ -9,6 +12,7 @@ from routes.report import router as report_router
 from routes.whisper import router as whisper_router
 from fastapi.responses import FileResponse
 from utils.pdf_report import generate_pdf
+
 
 # create the app
 app = FastAPI(title="AI Interview Assistant")

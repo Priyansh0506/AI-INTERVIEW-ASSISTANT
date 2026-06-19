@@ -56,9 +56,7 @@ export function useFaceDetection(addWarning) {
 
   async function startCamera() {
     try {
-      if (!document.fullscreenElement) {
-        try { await document.documentElement.requestFullscreen() } catch (e) {}
-      }
+  
       const stream = await navigator.mediaDevices.getUserMedia({ video: true })
       streamRef.current = stream
       if (videoRef.current) {

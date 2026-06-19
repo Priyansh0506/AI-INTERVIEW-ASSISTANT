@@ -22,6 +22,13 @@ export default function Login({ onLoginSuccess }) {
   const [signupError, setSignupError]       = useState("");
   const [strength, setStrength]             = useState(0);
 
+  // Forgot Password
+  const [showForgot, setShowForgot]         = useState(false);
+  const [forgotEmail, setForgotEmail]       = useState("");
+  const [forgotLoading, setForgotLoading]   = useState(false);
+  const [forgotMsg, setForgotMsg]           = useState("");
+  const [forgotError, setForgotError]       = useState("");
+
   const wrapperRef = useRef(null);
   const frontRef   = useRef(null);
   const backRef    = useRef(null);
@@ -106,6 +113,37 @@ export default function Login({ onLoginSuccess }) {
     }
   }
 
+  async function handleForgotPassword() {
+    setForgotError("");
+    setForgotMsg("");
+    if (!forgotEmail.trim()) {
+      setForgotError("Please enter your email.");
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const res = await fetch(`${API}/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setForgotError(data.detail || "Something went wrong."); return; }
+      setForgotMsg(data.message || "If that email is registered, a reset link has been sent.");
+    } catch {
+      setForgotError("Cannot reach server. Make sure the backend is running.");
+    } finally {
+      setForgotLoading(false);
+    }
+  }
+
+  function closeForgotModal() {
+    setShowForgot(false);
+    setForgotEmail("");
+    setForgotMsg("");
+    setForgotError("");
+  }
+
   const strColors = ["#ef4444", "#f97316", "#eab308", "#22c55e"];
   const strLabels = ["Weak", "Fair", "Good", "Strong"];
 
@@ -128,6 +166,10 @@ export default function Login({ onLoginSuccess }) {
           to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes spinRing { to { transform: rotate(360deg); } }
+        @keyframes modalIn {
+          from { opacity: 0; transform: scale(0.95) translateY(8px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
 
         .login-wrap {
           width: 100%;
@@ -238,6 +280,17 @@ export default function Login({ onLoginSuccess }) {
           animation: fadeUp 0.2s ease both;
         }
 
+        .ok-box {
+          background: rgba(74,124,89,0.08);
+          border: 1px solid rgba(74,124,89,0.25);
+          border-radius: 8px;
+          padding: 9px 12px;
+          color: #4A7C59;
+          font-size: 0.83rem;
+          margin-bottom: 14px;
+          animation: fadeUp 0.2s ease both;
+        }
+
         .divider {
           display: flex; align-items: center; gap: 12px;
           margin: 18px 0;
@@ -284,6 +337,31 @@ export default function Login({ onLoginSuccess }) {
           background: #EEE9E3;
           transition: background 0.25s;
         }
+
+        .modal-overlay {
+          position: fixed; inset: 0;
+          background: rgba(28,28,30,0.45);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+          animation: fadeUp 0.2s ease both;
+        }
+        .modal-card {
+          width: 100%;
+          max-width: 380px;
+          background: #FFFFFF;
+          border-radius: 16px;
+          padding: 28px 28px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+          animation: modalIn 0.22s cubic-bezier(0.4,0,0.2,1) both;
+        }
+        .modal-close {
+          background: none; border: none;
+          color: #B0AAA4; cursor: pointer;
+          font-size: 1.1rem; padding: 4px;
+          float: right; line-height: 1;
+        }
+        .modal-close:hover { color: #6B6560; }
 
         @media (max-width: 480px) {
           .face { padding: 28px 22px; }
@@ -346,7 +424,18 @@ export default function Login({ onLoginSuccess }) {
                 <div className="field-wrap">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
                     <label className="field-label" style={{ margin: 0 }}>Password</label>
-                    <button className="forgot-btn">Forgot password?</button>
+                    <button
+                      className="forgot-btn"
+                      type="button"
+                      onClick={() => {
+                        setShowForgot(true);
+                        setForgotEmail(loginEmail);
+                        setForgotMsg("");
+                        setForgotError("");
+                      }}
+                    >
+                      Forgot password?
+                    </button>
                   </div>
                   <div className="field-inner">
                     <input
@@ -384,8 +473,7 @@ export default function Login({ onLoginSuccess }) {
                   <button className="link-btn" onClick={() => flip(true)}>Create one</button>
                 </p>
               </div>
-
-              {/* SIGNUP */}
+{/* SIGNUP */}
               <div ref={backRef} className="face face-back">
                 <h2 style={{ fontSize: "1.35rem", fontWeight: 700, color: "#1C1C1E", marginBottom: 4 }}>
                   Create account
@@ -469,6 +557,51 @@ export default function Login({ onLoginSuccess }) {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgot && (
+        <div className="modal-overlay" onClick={closeForgotModal}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeForgotModal} type="button">✕</button>
+            <h2 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#1C1C1E", marginBottom: 4, clear: "both" }}>
+              Reset your password
+            </h2>
+            <p style={{ fontSize: "0.85rem", color: "#9B9590", marginBottom: 20 }}>
+              Enter your email and we'll send you a link to reset your password.
+            </p>
+
+            <div className="field-wrap">
+              <label className="field-label">Email</label>
+              <input
+                className="inp"
+                type="email"
+                placeholder="you@example.com"
+                value={forgotEmail}
+                onChange={e => setForgotEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleForgotPassword()}
+                disabled={!!forgotMsg}
+              />
+            </div>
+
+            {forgotError && <div className="err-box">{forgotError}</div>}
+            {forgotMsg && <div className="ok-box">{forgotMsg}</div>}
+
+            {!forgotMsg ? (
+              <button className="primary-btn" onClick={handleForgotPassword} disabled={forgotLoading}>
+                {forgotLoading
+                  ? <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                      <span className="spin-ring" /> Sending...
+                    </span>
+                  : "Send reset link"}
+              </button>
+            ) : (
+              <button className="primary-btn" onClick={closeForgotModal} type="button">
+                Back to sign in
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

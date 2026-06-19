@@ -2,10 +2,31 @@ from google import genai
 import os
 from dotenv import load_dotenv
 import random
+import re
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# MULTI-KEY ROTATION SETUP
+_env_keys = []
+i = 1
+while True:
+    key = os.getenv(f"GEMINI_KEY_{i}")
+    if not key:
+        break
+    _env_keys.append(key.strip())
+    i += 1
+
+if not _env_keys:
+    single_key = os.getenv("GEMINI_API_KEY")
+    if single_key:
+        _env_keys.append(single_key.strip())
+
+if not _env_keys:
+    raise RuntimeError("No Gemini API keys found in .env (GEMINI_KEY_1... or GEMINI_API_KEY)")
+
+# Build one client per key, reuse them (cheap to create, but no need to recreate every call)
+_clients = [genai.Client(api_key=k) for k in _env_keys]
+_current_key_index = 0
 
 QUESTION_MODEL = os.getenv("GEMINI_QUESTION_MODEL", "gemini-flash-latest")
 EVAL_MODEL = os.getenv("GEMINI_EVAL_MODEL", "gemini-flash-latest")
@@ -16,34 +37,125 @@ FALLBACK_MODELS = [model.strip() for model in os.getenv(
 
 _used_questions = set()
 
+RETRY_ERRORS = [
+    "RESOURCE_EXHAUSTED",
+    "Quota exceeded",
+    "NOT_FOUND",
+    "not found",
+    "unsupported",
+    "is not found",
+    "not supported for generateContent",
+    "UNAVAILABLE",
+    "503",
+    "high demand",
+    "overloaded",
+    "429",
+    "rate limit",
+]
+
+
+def _is_quota_error(message: str) -> bool:
+    quota_signals = ["RESOURCE_EXHAUSTED", "Quota exceeded", "429", "quota"]
+    return any(token.lower() in message.lower() for token in quota_signals)
+
+
 def _generate_with_fallback(prompt: str, primary_model: str) -> str:
+    """
+    Tries every model on the current key. If every model on the current key
+    fails due to a quota error, rotates to the next API key and tries again
+    from the top. Only raises once ALL keys x ALL models have failed.
+    """
+    global _current_key_index
+
     models = [primary_model] + [m for m in FALLBACK_MODELS if m != primary_model]
     last_error = None
 
-    retry_errors = [
-        "RESOURCE_EXHAUSTED",
-        "Quota exceeded",
-        "NOT_FOUND",
-        "not found",
-        "unsupported",
-        "is not found",
-        "not supported for generateContent"
-    ]
+    keys_tried = 0
+    total_keys = len(_clients)
 
-    for model in models:
-        try:
-            response = client.models.generate_content(model=model, contents=prompt)
-            return response.text.strip()
-        except Exception as e:
-            last_error = e
-            message = str(e)
-            print(f"Gemini model {model} failed: {message}")
-            if any(token in message for token in retry_errors):
-                continue
-            break
+    while keys_tried < total_keys:
+        client = _clients[_current_key_index]
+
+        for model in models:
+            try:
+                response = client.models.generate_content(model=model, contents=prompt)
+                return response.text.strip()
+            except Exception as e:
+                last_error = e
+                message = str(e)
+                if any(token.lower() in message.lower() for token in RETRY_ERRORS):
+                    continue
+                break  # non-retryable error on this model, but still try other models on this key
+
+        # All models failed on this key â€” check if it was a quota issue, rotate key
+        keys_tried += 1
+        _current_key_index = (_current_key_index + 1) % total_keys
 
     if last_error is not None:
         raise last_error
+
+
+# ---------------------------------------------------------
+# RULE-BASED FALLBACK SCORER (used only if ALL keys/models fail)
+# ---------------------------------------------------------
+FILLER_WORDS = ["um", "uh", "like", "you know", "basically", "actually", "sort of", "kind of"]
+
+def _rule_based_score(question: str, answer: str, role: str) -> str:
+    answer_clean = answer.strip()
+    words = re.findall(r"\b\w+\b", answer_clean.lower())
+    word_count = len(words)
+
+    # Empty / near-empty answer
+    if word_count == 0:
+        return "Score: 0/10\nFeedback: No answer was provided.\nImprove: Attempt the question, even partially.\nGood: N/A"
+
+    if word_count <= 3:
+        return "Score: 1/10\nFeedback: Answer is too short to evaluate meaningfully.\nImprove: Expand your answer with more detail and reasoning.\nGood: N/A"
+
+    # Filler word ratio
+    filler_count = sum(1 for w in words if w in FILLER_WORDS)
+    filler_ratio = filler_count / word_count
+
+    # Length-based base score
+    if word_count < 15:
+        base_score = 3
+    elif word_count < 40:
+        base_score = 5
+    elif word_count < 90:
+        base_score = 7
+    else:
+        base_score = 8
+
+    # Role/question keyword overlap â€” crude relevance check
+    question_keywords = set(re.findall(r"\b\w{4,}\b", question.lower()))
+    answer_keywords = set(words)
+    overlap = len(question_keywords & answer_keywords)
+    if overlap == 0 and word_count > 5:
+        base_score = max(0, base_score - 2)  # likely off-topic
+    elif overlap >= 3:
+        base_score = min(10, base_score + 1)
+
+    # Penalize heavy filler usage
+    if filler_ratio > 0.15:
+        base_score = max(0, base_score - 1)
+
+    base_score = max(0, min(10, base_score))
+
+    feedback_lines = []
+    if filler_ratio > 0.15:
+        feedback_lines.append("Try to reduce filler words like 'um', 'uh', or 'like'.")
+    if overlap == 0:
+        feedback_lines.append("Answer didn't clearly reference the question's topic.")
+    if word_count < 15:
+        feedback_lines.append("Answer was quite brief â€” more detail would help.")
+    if not feedback_lines:
+        feedback_lines.append("Reasonable attempt based on length and structure.")
+
+    feedback = " ".join(feedback_lines)
+    improve = "Add specific examples or technical depth relevant to the question."
+    good = "Answer was attempted with some relevant content." if overlap > 0 else "N/A"
+
+    return f"Score: {base_score}/10\nFeedback: {feedback} (Auto-scored â€” AI evaluator was unavailable.)\nImprove: {improve}\nGood: {good}"
 
 
 def generate_question(role: str, difficulty: str = "Easy") -> str:
@@ -304,14 +416,14 @@ def evaluate_answer(question: str, answer: str, role: str) -> str:
     Question: {question}
     Candidate Answer: {answer}
 
-    STRICT SCORING RULES — follow exactly:
-    - Gibberish, greetings, or irrelevant text → Score: 0
-    - Empty or one-word answer → Score: 0-1
-    - Very poor, missing key concepts → Score: 2-3
-    - Partial answer, missing important points → Score: 4-5
-    - Decent answer with some good points → Score: 6-7
-    - Strong answer with examples and depth → Score: 8-9
-    - Exceptional, covers everything with insight → Score: 10
+    STRICT SCORING RULES â€” follow exactly:
+    - Gibberish, greetings, or irrelevant text â†’ Score: 0
+    - Empty or one-word answer â†’ Score: 0-1
+    - Very poor, missing key concepts â†’ Score: 2-3
+    - Partial answer, missing important points â†’ Score: 4-5
+    - Decent answer with some good points â†’ Score: 6-7
+    - Strong answer with examples and depth â†’ Score: 8-9
+    - Exceptional, covers everything with insight â†’ Score: 10
 
     Respond in EXACTLY this format (no extra text):
     Score: [number]/10
@@ -323,6 +435,6 @@ def evaluate_answer(question: str, answer: str, role: str) -> str:
         evaluation = _generate_with_fallback(prompt, EVAL_MODEL)
         return evaluation
     except Exception as e:
-        print(f"Gemini error: {e}")
-        score = random.randint(2, 5)
-        return f"Score: {score}/10\nFeedback: Unable to evaluate at this time.\nImprove: Please try again.\nGood: N/A"
+        print(f"Gemini error (all keys/models exhausted): {e}")
+        # Use rule-based scorer instead of a random score
+        return _rule_based_score(question, answer, role)
