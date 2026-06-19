@@ -43,5 +43,39 @@ def init_db():
         )
     """)
 
+    # history table — stores final results of completed interviews
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT,
+            role TEXT,
+            difficulty TEXT,
+            final_score REAL,
+            integrity_score INTEGER,
+            eye_contact_score INTEGER,
+            feedback TEXT,
+            improve TEXT,
+            good TEXT,
+            nlp_score REAL,
+            similarity REAL,
+            keyword_match REAL,
+            matched_keywords TEXT,
+            nlp_feedback TEXT,
+            feedbacks TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # users table — stores login accounts
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
