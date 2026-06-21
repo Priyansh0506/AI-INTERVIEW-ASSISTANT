@@ -47,6 +47,7 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             session_id TEXT,
             role TEXT,
             difficulty TEXT,
@@ -62,9 +63,17 @@ def init_db():
             matched_keywords TEXT,
             nlp_feedback TEXT,
             feedbacks TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
+
+    # one-time migration: add user_id to history if an older db file
+    # was created before this column existed (safe to run every startup)
+    cursor.execute("PRAGMA table_info(history)")
+    history_cols = [row[1] for row in cursor.fetchall()]
+    if "user_id" not in history_cols:
+        cursor.execute("ALTER TABLE history ADD COLUMN user_id INTEGER")
 
     # users table — stores login accounts
     cursor.execute("""
@@ -90,32 +99,16 @@ def init_db():
         )
     """)
 
-# password_resets table — stores password reset tokens
+    # login_sessions table — stores active login tokens (replaces blind user_id trust)
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS password_resets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        CREATE TABLE IF NOT EXISTS login_sessions (
+            token TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
-            token TEXT UNIQUE NOT NULL,
-            expires_at TIMESTAMP NOT NULL,
-            used INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
-
-    # password_resets table — stores password reset tokens
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS password_resets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            token TEXT UNIQUE NOT NULL,
-            expires_at TIMESTAMP NOT NULL,
-            used INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-    """)
-
 
     conn.commit()
     conn.close()

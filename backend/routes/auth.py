@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
 import secrets
 
 from database.db import get_connection
 from database.users import create_user, authenticate_user, hash_password
+from database.sessions import create_login_session, delete_login_session
 
 from utils.email_service import send_reset_email
 
@@ -37,7 +38,8 @@ def signup(data: SignupRequest):
     if user_id is None:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    return {"id": user_id, "name": data.name, "email": data.email}
+    token = create_login_session(user_id)
+    return {"id": user_id, "name": data.name, "email": data.email, "token": token}
 
 
 @router.post("/login")
@@ -46,7 +48,15 @@ def login(data: LoginRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    return user
+    token = create_login_session(user["id"])
+    return {**user, "token": token}
+
+
+@router.post("/logout")
+def logout(authorization: str = Header(None)):
+    if authorization and authorization.startswith("Bearer "):
+        delete_login_session(authorization.replace("Bearer ", "", 1))
+    return {"message": "Logged out"}
 
 
 @router.post("/forgot-password")

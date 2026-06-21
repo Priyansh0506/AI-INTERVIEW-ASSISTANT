@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -6,6 +6,7 @@ from services.gemini_service import evaluate_answer
 from services.scoring import parse_score, get_communication_score
 from services.nlp_scorer import score_answer
 from database.model import save_interview_result
+from routes.deps import get_current_user_id
 
 router = APIRouter()
 
@@ -58,21 +59,13 @@ class InterviewRequest(BaseModel):
     role: str
     difficulty: Optional[str] = "Easy"
     session_id: Optional[str] = None
-    class InterviewRequest(BaseModel):
-      role: str
-    difficulty: Optional[str] = "Easy"
-    session_id: Optional[str] = None
-    user_id: Optional[int] = None
-    answers: List[InterviewAnswer]
-    integrity_score: int = 100
-    eye_contact_score: int = 100
     answers: List[InterviewAnswer]
     integrity_score: int = 100
     eye_contact_score: int = 100
 
 
 @router.post("/evaluate-interview")
-def evaluate_interview(request: InterviewRequest):
+def evaluate_interview(request: InterviewRequest, user_id: int = Depends(get_current_user_id)):
     scores, feedbacks, improves, goods = [], [], [], []
 
     for item in request.answers:
@@ -123,7 +116,7 @@ def evaluate_interview(request: InterviewRequest):
         history_id = save_interview_result({
             **result,
             "session_id": request.session_id,
-            "user_id": 1,
+            "user_id": user_id,
         })
         result["history_id"] = history_id   # frontend ko milega PDF ke liye
     except Exception as e:
@@ -135,7 +128,7 @@ def evaluate_interview(request: InterviewRequest):
 
 # ── History endpoints ──────────────────────────────────────
 @router.get("/history")
-def get_history(user_id: int=1):
+def get_history(user_id: int = Depends(get_current_user_id)):
     from database.model import get_history_by_user
     return {"history": get_history_by_user(user_id)}
 
