@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "./config/api";
 
 import Login from "./components/pages/Login";
 import ResetPassword from "./components/pages/ResetPassword";
@@ -108,6 +109,7 @@ function App() {
 }
 
   function handleLogout() {
+    apiFetch("/logout", { method: "POST" }).catch(() => {}); // best-effort, token is invalid client-side regardless
     localStorage.removeItem("currentUser");
     setUser(null);
     setShowDashboard(true);

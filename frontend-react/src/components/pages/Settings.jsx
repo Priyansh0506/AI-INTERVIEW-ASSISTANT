@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiFetch } from "../../config/api";
+import Sidebar from "../layouts/Sidebar";
 
 const DEFAULT_SETTINGS = {
   numQuestions: 1,
@@ -38,7 +40,7 @@ function Settings({ setActivePage, activePage = "settings", theme: propTheme, on
     if (!window.confirm("This will permanently delete all your interview history. Are you sure?")) return;
     setClearing(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/clear-history", { method: "DELETE" });
+      const res = await apiFetch("/clear-history", { method: "DELETE" });
       if (!res.ok) throw new Error("Failed");
       localStorage.removeItem("interviewHistory");
       alert("All history has been cleared.");
@@ -68,13 +70,6 @@ function Settings({ setActivePage, activePage = "settings", theme: propTheme, on
     optBorder: isDark ? "#333333" : "#E0DBD5",
     mutedText: isDark ? "#5A5550" : "#B0AAA4",
   };
-
-  const navItems = [
-    { key: "dashboard",   label: "Dashboard"   },
-    { key: "performance", label: "Performance" },
-    { key: "history",     label: "History"     },
-    { key: "settings",    label: "Settings"    },
-  ];
 
   function OptionBtn({ label, active, onClick }) {
     return (
@@ -138,71 +133,14 @@ function Settings({ setActivePage, activePage = "settings", theme: propTheme, on
         ::-webkit-scrollbar-thumb { background: ${colors.cardBorder}; border-radius: 10px; }
       `}</style>
 
-      {/* Sidebar */}
-      <motion.div
-        initial={{ x: -20, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.3 }}
-        style={{
-          width: 220, minWidth: 220,
-          background: colors.sidebar,
-          borderRight: `1px solid ${colors.sidebarBorder}`,
-          padding: "28px 14px",
-          display: "flex", flexDirection: "column", gap: 4,
-        }}
-      >
-        <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#F0EDE8", marginBottom: 28, paddingLeft: 10 }}>
-          InterviewAI
-        </div>
-
-        {navItems.map((nav) => {
-          const isActive = activePage === nav.key;
-          return (
-            <button key={nav.key} className="nav-btn" onClick={() => setActivePage(nav.key)} style={{
-              width: "100%", padding: "10px 12px",
-              border: "none", borderRadius: 8,
-              background: isActive ? colors.accent : "transparent",
-              color: isActive ? "#fff" : "#9A9590",
-              fontSize: "0.9rem", fontWeight: isActive ? 600 : 400,
-              cursor: "pointer", textAlign: "left",
-            }}>
-              {nav.label}
-            </button>
-          );
-        })}
-
-        <button className="nav-btn" onClick={() => setActivePage("dashboard")} style={{
-          width: "100%", padding: "11px 12px",
-          border: `1px solid ${colors.accent}`,
-          borderRadius: 8, background: "transparent",
-          color: colors.accent, fontSize: "0.9rem", fontWeight: 600,
-          cursor: "pointer", textAlign: "left", marginTop: 8,
-        }}>
-          New Interview
-        </button>
-
-        <div style={{ marginTop: "auto", paddingTop: 20, borderTop: `1px solid ${colors.sidebarBorder}` }}>
-          {user && (
-            <div style={{ color: "#6A6560", fontSize: "0.82rem", marginBottom: 10, paddingLeft: 2 }}>
-              {user.name}
-            </div>
-          )}
-          {onLogout && (
-            <button onClick={onLogout} style={{
-              width: "100%", padding: "10px 12px",
-              border: "1px solid #3a2020", borderRadius: 8,
-              background: "transparent", color: "#C0645A",
-              fontSize: "0.87rem", fontWeight: 500,
-              cursor: "pointer", textAlign: "left", transition: "all 0.18s ease",
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(192,100,90,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >
-              Sign out
-            </button>
-          )}
-        </div>
-      </motion.div>
+     <Sidebar
+  setActivePage={setActivePage}
+  activePage={activePage}
+  theme={propTheme ?? settings.theme}
+  user={user}
+  onLogout={onLogout}
+  onNewInterview={() => setActivePage("dashboard")}
+/>
 
       {/* Main */}
       <div style={{ flex: 1, padding: "40px 48px", overflowY: "auto" }}>

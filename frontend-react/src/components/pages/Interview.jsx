@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useFaceDetection } from "../../hooks/useFaceDetection"
 import SidePanel from "../layouts/SidePanel"
+import { apiFetch } from "../../config/api"
 
 const API = "http://127.0.0.1:8000"
 
@@ -262,7 +263,7 @@ useEffect(() => {
         return
       }
 
-      const res = await fetch(`${API}/evaluate-interview`, {
+      const res = await apiFetch(`/evaluate-interview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -270,7 +271,6 @@ useEffect(() => {
   answers: updatedAnswers,
   integrity_score: integrityScore,
   eye_contact_score: eyeContactScore,
-  user_id: user?.id,
 })
       })
 
@@ -498,7 +498,7 @@ useEffect(() => {
                   ))}
                 </div>
 
-               {/* Mic button */}
+              {/* Mic button */}
                 <button
                   onClick={recording ? stopRecording : startRecording}
                   disabled={transcribing || loading || timeLeft === 0 || isSpeaking}
@@ -582,7 +582,7 @@ useEffect(() => {
             </>
           )}
 
-          {/* Submit */}
+         {/* Submit */}
           <button
             className="submit-btn"
             onClick={submitAnswer}

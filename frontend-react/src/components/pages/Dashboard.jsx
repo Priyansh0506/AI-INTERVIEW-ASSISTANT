@@ -1,5 +1,90 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiFetch } from "../../config/api";
+import {
+  IconHome, IconClock, IconTrendingUp, IconSettings, IconCalendar,
+  IconStar, IconFlame, IconLogOut, IconPlus, IconEye, IconMic,
+  IconList, IconBulb, IconHeart,
+} from "../icons";
+
+// Builds 7 day buckets (oldest -> newest) and averages scores that fall on each day.
+function buildLast7Days(history) {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - i);
+    days.push({
+      date: d,
+      label: d.toLocaleDateString(undefined, { day: "2-digit", month: "short" }),
+      scores: [],
+    });
+  }
+  history.forEach((h) => {
+    if (!h.created_at) return;
+    const created = new Date(h.created_at);
+    const match = days.find((day) => created.toDateString() === day.date.toDateString());
+    if (match) match.scores.push(Number(h.final_score ?? h.score ?? 0));
+  });
+  return days.map((day) => ({
+    label: day.label,
+    value: day.scores.length ? day.scores.reduce((a, b) => a + b, 0) / day.scores.length : 0,
+  }));
+}
+
+// Small inline sparkline — no chart library needed, scores are always 0-10.
+function MiniLineChart({ data, color, gridColor }) {
+  const width = 700;
+  const height = 150;
+  const padding = 16;
+  const max = 10;
+  const stepX = data.length > 1 ? (width - padding * 2) / (data.length - 1) : 0;
+
+  const points = data.map((d, i) => ({
+    x: padding + i * stepX,
+    y: height - padding - (Math.min(d.value, max) / max) * (height - padding * 2),
+    value: d.value,
+  }));
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const areaPath = points.length
+    ? `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`
+    : "";
+  const last = points[points.length - 1];
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}>
+      <defs>
+        <linearGradient id="dashChartFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0, 2.5, 5, 7.5, 10].map((g, i) => {
+        const y = height - padding - (g / max) * (height - padding * 2);
+        return <line key={i} x1={padding} x2={width - padding} y1={y} y2={y} stroke={gridColor} strokeWidth="1" strokeDasharray="3 5" />;
+      })}
+      {points.length > 0 && <path d={areaPath} fill="url(#dashChartFill)" stroke="none" />}
+      {points.length > 0 && <path d={linePath} fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />}
+      {points.map((p, i) => (
+        <circle
+          key={i}
+          cx={p.x}
+          cy={p.y}
+          r={i === points.length - 1 ? 5 : 3}
+          fill={i === points.length - 1 ? color : "#1a1a1a"}
+          stroke={color}
+          strokeWidth="1.6"
+        />
+      ))}
+      {last && (
+        <text x={last.x} y={Math.max(14, last.y - 14)} textAnchor="middle" fontSize="13" fontWeight="700" fill={color}>
+          {last.value.toFixed(1)}
+        </text>
+      )}
+    </svg>
+  );
+}
 
 function Dashboard({
   onStart,
@@ -16,6 +101,8 @@ function Dashboard({
   const [statsLoading, setStatsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [recentSessions, setRecentSessions] = useState([]);
+  const [chartData, setChartData] = useState(buildLast7Days([]));
+  const [streak, setStreak] = useState({ current: 0, longest: 0 });
 
   const isDark = theme === "dark";
 
@@ -35,18 +122,33 @@ function Dashboard({
     good: "#4A7C59",
     warn: "#B5894A",
     danger: "#A0524A",
+    trackBg: isDark ? "#2a2a2a" : "#EFE9E2",
   };
 
   useEffect(() => {
     fetchStats();
   }, []);
-async function fetchStats() {
+
+  async function fetchStats() {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/history?user_id=${user.id}`);
-      const data = await res.json();
-      const history = data.history || [];
+      const [histRes, streakRes] = await Promise.all([
+        apiFetch(`/history`),
+        apiFetch(`/streak`),
+      ]);
+
+      const histData = await histRes.json();
+      const history = histData.history || [];
+
+      if (streakRes.ok) {
+        const streakData = await streakRes.json();
+        setStreak({
+          current: streakData.current_streak || 0,
+          longest: streakData.longest_streak || 0,
+        });
+      }
+
       if (history.length > 0) {
-        const scores = history.map(h => h.final_score || h.score || 0);
+        const scores = history.map(h => h.final_score ?? h.score ?? 0);
         const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
         setStats({
           total: history.length,
@@ -58,6 +160,7 @@ async function fetchStats() {
         setStats({ total: 0, avgScore: 0, lastScore: 0 });
         setRecentSessions([]);
       }
+      setChartData(buildLast7Days(history));
     } catch (e) {
       // silent
     } finally {
@@ -91,17 +194,18 @@ async function fetchStats() {
   }
 
   const navItems = [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "performance", label: "Performance" },
-    { key: "history", label: "History" },
-    { key: "settings", label: "Settings" },
+    { key: "dashboard", label: "Dashboard", Icon: IconHome },
+    { key: "performance", label: "Performance", Icon: IconTrendingUp },
+    { key: "history", label: "History", Icon: IconClock },
+    { key: "settings", label: "Settings", Icon: IconSettings },
   ];
 
   const tips = [
-    { title: "Eye Contact", desc: "Look directly at the camera when speaking to appear confident." },
-    { title: "Speak Clearly", desc: "Articulate your words and avoid filler words like 'um' or 'uh'." },
-    { title: "Be Concise", desc: "Answer the question directly without unnecessary elaboration." },
-    { title: "Think First", desc: "Take a moment to collect your thoughts before responding." },
+    { title: "Eye Contact", desc: "Look directly at the camera when speaking to appear confident.", Icon: IconEye },
+    { title: "Speak Clearly", desc: "Articulate your words and avoid filler words like 'um' or 'uh'.", Icon: IconMic },
+    { title: "Be Concise", desc: "Answer the question directly without unnecessary elaboration.", Icon: IconList },
+    { title: "Think First", desc: "Take a moment to collect your thoughts before responding.", Icon: IconBulb },
+    { title: "Stay Positive", desc: "Maintain a positive attitude and show enthusiasm.", Icon: IconHeart },
   ];
 
   const scoreColor = (score) => {
@@ -114,6 +218,30 @@ async function fetchStats() {
       return colors.mutedText;
     }
   };
+
+  const statCards = [
+    {
+      label: "Sessions Completed",
+      value: stats.total,
+      Icon: IconCalendar,
+      caption: stats.total > 0 ? "Keep going!" : "Start your first one!",
+      color: colors.text,
+    },
+    {
+      label: "Average Score",
+      value: `${stats.avgScore}/10`,
+      Icon: IconTrendingUp,
+      caption: parseFloat(stats.avgScore) >= 7 ? "Great consistency!" : "Let's improve this!",
+      color: scoreColor(stats.avgScore),
+    },
+    {
+      label: "Last Score",
+      value: `${stats.lastScore}/10`,
+      Icon: IconStar,
+      caption: parseFloat(stats.lastScore) >= 7 ? "Nice work!" : "You can do better!",
+      color: scoreColor(stats.lastScore),
+    },
+  ];
 
   return (
     <div style={{
@@ -129,6 +257,8 @@ async function fetchStats() {
         * { box-sizing: border-box; }
         .nav-btn { transition: all 0.18s ease; }
         .nav-btn:hover { background: ${isDark ? "#222222" : "#F0EDE8"} !important; }
+        .icon-btn { transition: all 0.18s ease; }
+        .icon-btn:hover { border-color: ${colors.accent} !important; }
       `}</style>
 
       {/* Sidebar */}
@@ -137,8 +267,8 @@ async function fetchStats() {
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.3 }}
         style={{
-          width: 220,
-          minWidth: 220,
+          width: 230,
+          minWidth: 230,
           background: colors.sidebar,
           borderRight: `1px solid ${colors.sidebarBorder}`,
           padding: "28px 14px",
@@ -147,8 +277,15 @@ async function fetchStats() {
           gap: 4,
         }}
       >
-        <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#F0EDE8", marginBottom: 28, paddingLeft: 10 }}>
-          InterviewAI
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28, paddingLeft: 10 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8, background: colors.accent,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontWeight: 800, fontSize: "0.95rem",
+          }}>
+            I
+          </div>
+          <span style={{ fontSize: "1.05rem", fontWeight: 700, color: "#F0EDE8" }}>InterviewAI</span>
         </div>
 
         {navItems.map((nav) => {
@@ -156,12 +293,14 @@ async function fetchStats() {
           return (
             <button key={nav.key} className="nav-btn" onClick={() => setActivePage(nav.key)} style={{
               width: "100%", padding: "10px 12px",
+              display: "flex", alignItems: "center", gap: 10,
               border: "none", borderRadius: 8,
               background: isActive ? colors.accent : "transparent",
               color: isActive ? "#fff" : "#9A9590",
               fontSize: "0.9rem", fontWeight: isActive ? 600 : 400,
               cursor: "pointer", textAlign: "left",
             }}>
+              <nav.Icon size={17} color={isActive ? "#fff" : "#8A8580"} />
               {nav.label}
             </button>
           );
@@ -169,35 +308,74 @@ async function fetchStats() {
 
         <button className="nav-btn" onClick={() => setShowModal(true)} style={{
           width: "100%", padding: "11px 12px",
+          display: "flex", alignItems: "center", gap: 10,
           border: `1px solid ${colors.accent}`,
           borderRadius: 8, background: "transparent",
           color: colors.accent, fontSize: "0.9rem", fontWeight: 600,
           cursor: "pointer", textAlign: "left", marginTop: 8,
         }}>
+          <IconPlus size={16} color={colors.accent} />
           New Interview
         </button>
 
-        <div style={{ marginTop: "auto", paddingTop: 20, borderTop: `1px solid ${colors.sidebarBorder}` }}>
-          {user && (
-            <div style={{ color: "#6A6560", fontSize: "0.82rem", marginBottom: 10, paddingLeft: 2 }}>
-              {user.name}
+        <div style={{ marginTop: "auto", paddingTop: 16 }}>
+          {/* Daily streak widget */}
+          <div style={{
+            background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`,
+            padding: "14px 16px", marginBottom: 16,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <IconFlame size={16} color={colors.accent} />
+              <span style={{ fontSize: "0.82rem", fontWeight: 700, color: colors.text }}>
+                {streak.current} day{streak.current === 1 ? "" : "s"} streak
+              </span>
             </div>
-          )}
-          {onLogout && (
-            <button onClick={onLogout} style={{
-              width: "100%", padding: "10px 12px",
-              border: "1px solid #3a2020", borderRadius: 8,
-              background: "transparent", color: "#C0645A",
-              fontSize: "0.87rem", fontWeight: 500,
-              cursor: "pointer", textAlign: "left",
-              transition: "all 0.18s ease",
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(192,100,90,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >
-              Sign out
-            </button>
-          )}
+            <div style={{ fontSize: "0.72rem", color: colors.mutedText, marginBottom: 10 }}>
+              Best: {streak.longest} day{streak.longest === 1 ? "" : "s"} · log in or interview daily
+            </div>
+            <div style={{ height: 5, borderRadius: 3, background: colors.trackBg, overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${Math.min(100, (streak.current / 7) * 100)}%`,
+                background: colors.accent, borderRadius: 3,
+                transition: "width 0.3s ease",
+              }} />
+            </div>
+          </div>
+
+          <div style={{ borderTop: `1px solid ${colors.sidebarBorder}`, paddingTop: 16 }}>
+            {user && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: "50%", background: colors.accentSoft,
+                  color: colors.accent, display: "flex", alignItems: "center", justifyContent: "center",
+                  fontWeight: 700, fontSize: "0.78rem", flexShrink: 0,
+                }}>
+                  {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+                </div>
+                <div style={{ color: "#9A9590", fontSize: "0.82rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {user.name}
+                </div>
+              </div>
+            )}
+            {onLogout && (
+              <button onClick={onLogout} style={{
+                width: "100%", padding: "10px 12px",
+                display: "flex", alignItems: "center", gap: 10,
+                border: "1px solid #3a2020", borderRadius: 8,
+                background: "transparent", color: "#C0645A",
+                fontSize: "0.87rem", fontWeight: 500,
+                cursor: "pointer", textAlign: "left",
+                transition: "all 0.18s ease",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(192,100,90,0.1)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                <IconLogOut size={15} color="#C0645A" />
+                Sign out
+              </button>
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -209,14 +387,41 @@ async function fetchStats() {
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.3 }}
-          style={{ marginBottom: 32 }}
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16, marginBottom: 32 }}
         >
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 700, color: colors.text, margin: 0, letterSpacing: "-0.4px" }}>
-            Hey{user ? `, ${user.name.split(" ")[0]}` : ""}
-          </h1>
-          <p style={{ color: colors.subtext, fontSize: "0.9rem", margin: "6px 0 0" }}>
-            Welcome back. Ready for your next interview?
-          </p>
+          <div>
+            <h1 style={{ fontSize: "1.8rem", fontWeight: 700, color: colors.text, margin: 0, letterSpacing: "-0.4px" }}>
+              Hey{user ? `, ${user.name.split(" ")[0]}` : ""} 👋
+            </h1>
+            <p style={{ color: colors.subtext, fontSize: "0.9rem", margin: "6px 0 0" }}>
+              Welcome back. Ready for your next interview?
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button className="icon-btn" onClick={() => setActivePage("performance")} style={{
+              padding: "11px 18px", display: "flex", alignItems: "center", gap: 8,
+              background: colors.card, color: colors.text,
+              border: `1px solid ${colors.cardBorder}`, borderRadius: 10,
+              fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
+            }}>
+              <IconTrendingUp size={15} color={colors.text} />
+              View Analytics
+            </button>
+            <button onClick={() => setShowModal(true)} style={{
+              padding: "11px 18px", display: "flex", alignItems: "center", gap: 8,
+              background: colors.accent, color: "#fff",
+              border: "none", borderRadius: 10,
+              fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
+              transition: "all 0.18s ease",
+            }}
+              onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+            >
+              <IconPlus size={15} color="#fff" />
+              Start New Interview
+            </button>
+          </div>
         </motion.div>
 
         {/* Stats Row */}
@@ -227,84 +432,56 @@ async function fetchStats() {
             transition={{ duration: 0.3, delay: 0.1 }}
             style={{ display: "flex", gap: 14, marginBottom: 32, flexWrap: "wrap" }}
           >
-            {[
-              { label: "Sessions", value: stats.total },
-              { label: "Average", value: `${stats.avgScore}/10` },
-              { label: "Last Score", value: `${stats.lastScore}/10` },
-            ].map((stat, i) => (
+            {statCards.map((stat, i) => (
               <div key={i} style={{
-                flex: "1 1 160px",
+                flex: "1 1 200px",
                 background: colors.card,
-                borderRadius: 12, padding: "20px 22px",
+                borderRadius: 12, padding: "18px 20px",
                 border: `1px solid ${colors.cardBorder}`,
                 boxShadow: isDark ? "none" : "0 2px 10px rgba(0,0,0,0.04)",
               }}>
-                <div style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", color: colors.label, marginBottom: 10 }}>
-                  {stat.label}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", color: colors.label }}>
+                    {stat.label}
+                  </div>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: 8, background: colors.accentSoft,
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <stat.Icon size={15} color={colors.accent} />
+                  </div>
                 </div>
-                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: i === 0 ? colors.accent : scoreColor(stat.value) }}>
+                <div style={{ fontSize: "1.55rem", fontWeight: 700, color: stat.color }}>
                   {stat.value}
+                </div>
+                <div style={{ fontSize: "0.74rem", color: colors.mutedText, marginTop: 6 }}>
+                  {stat.caption}
                 </div>
               </div>
             ))}
           </motion.div>
         )}
 
-        {/* Quick Actions */}
-        <motion.div
-          initial={{ y: 16, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.35, delay: 0.15 }}
-          style={{ marginBottom: 32 }}
-        >
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-            <button onClick={() => setShowModal(true)} style={{
-              padding: "18px 20px", background: colors.accent, color: "#fff",
-              border: "none", borderRadius: 12, fontSize: "0.9rem", fontWeight: 600,
-              cursor: "pointer", transition: "all 0.18s ease",
-            }}
-              onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
-              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-            >
-              Start New Interview
-            </button>
-            <button onClick={() => setActivePage("history")} style={{
-              padding: "18px 20px", background: colors.card, color: colors.text,
-              border: `1px solid ${colors.cardBorder}`, borderRadius: 12,
-              fontSize: "0.9rem", fontWeight: 600,
-              cursor: "pointer", transition: "all 0.18s ease",
-            }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = colors.accent}
-              onMouseLeave={e => e.currentTarget.style.borderColor = colors.cardBorder}
-            >
-              View History
-            </button>
-            <button onClick={() => setActivePage("performance")} style={{
-              padding: "18px 20px", background: colors.card, color: colors.text,
-              border: `1px solid ${colors.cardBorder}`, borderRadius: 12,
-              fontSize: "0.9rem", fontWeight: 600,
-              cursor: "pointer", transition: "all 0.18s ease",
-            }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = colors.accent}
-              onMouseLeave={e => e.currentTarget.style.borderColor = colors.cardBorder}
-            >
-              See Performance
-            </button>
-          </div>
-        </motion.div>
-
         {/* Two Column Layout */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 32 }}>
 
-          {/* Recent Sessions */}
+         {/* Recent Sessions */}
           <motion.div
             initial={{ y: 16, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.35, delay: 0.2 }}
           >
-            <h2 style={{ fontSize: "0.95rem", fontWeight: 600, color: colors.text, marginBottom: 14 }}>
-              Recent Sessions
-            </h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h2 style={{ fontSize: "0.95rem", fontWeight: 600, color: colors.text, margin: 0 }}>
+                Recent Sessions
+              </h2>
+              <button onClick={() => setActivePage("history")} style={{
+                background: "none", border: "none", color: colors.accent,
+                fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", padding: 0,
+              }}>
+                View all →
+              </button>
+            </div>
             <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
               {recentSessions.length > 0 ? (
                 recentSessions.map((session, i) => (
@@ -323,9 +500,9 @@ async function fetchStats() {
                     </div>
                     <div style={{
                       fontSize: "1rem", fontWeight: 700,
-                      color: scoreColor(session.final_score || session.score),
+                      color: scoreColor(session.final_score ?? session.score ?? 0),
                     }}>
-                      {session.final_score || session.score}/10
+                      {session.final_score ?? session.score ?? 0}/10
                     </div>
                   </div>
                 ))
@@ -349,23 +526,53 @@ async function fetchStats() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {tips.map((tip, i) => (
                 <div key={i} style={{
+                  display: "flex", gap: 12,
                   background: colors.card,
                   borderRadius: 12,
                   border: `1px solid ${colors.cardBorder}`,
                   padding: "14px 16px",
-                  borderLeft: `3px solid ${colors.accent}`,
                 }}>
-                  <div style={{ fontSize: "0.8rem", fontWeight: 600, color: colors.accent, marginBottom: 4 }}>
-                    {tip.title}
+                  <div style={{
+                    width: 32, height: 32, minWidth: 32, borderRadius: 8, background: colors.accentSoft,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <tip.Icon size={15} color={colors.accent} />
                   </div>
-                  <div style={{ fontSize: "0.8rem", color: colors.subtext, lineHeight: 1.5 }}>
-                    {tip.desc}
+                  <div>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 600, color: colors.accent, marginBottom: 4 }}>
+                      {tip.title}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: colors.subtext, lineHeight: 1.5 }}>
+                      {tip.desc}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </motion.div>
         </div>
+
+        {/* Performance Overview */}
+        <motion.div
+          initial={{ y: 16, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.35, delay: 0.3 }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h2 style={{ fontSize: "0.95rem", fontWeight: 600, color: colors.text, margin: 0 }}>
+              Performance Overview
+            </h2>
+            <span style={{ fontSize: "0.75rem", color: colors.mutedText }}>Last 7 days</span>
+          </div>
+          <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "20px 24px 12px" }}>
+            <MiniLineChart data={chartData} color={colors.accent} gridColor={colors.trackBg} />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+              {chartData.map((d, i) => (
+                <span key={i} style={{ fontSize: "0.65rem", color: colors.mutedText }}>{d.label}</span>
+              ))}
+            </div>
+          </div>
+        </motion.div>
 
       </div>
 

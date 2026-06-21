@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { apiFetch } from "../../config/api";
+import Sidebar from "../layouts/Sidebar";
 
 function History({ setActivePage, activePage = "history", theme = "dark", user, onLogout }) {
   const [history, setHistory] = useState([]);
@@ -10,8 +12,6 @@ function History({ setActivePage, activePage = "history", theme = "dark", user, 
 
   const colors = {
     bg: isDark ? "#0f0f0f" : "#F7F5F2",
-    sidebar: isDark ? "#141414" : "#1C1C1E",
-    sidebarBorder: isDark ? "#2a2a2a" : "#2a2a2a",
     card: isDark ? "#1a1a1a" : "#FFFFFF",
     cardBorder: isDark ? "#2a2a2a" : "#E8E4DE",
     text: isDark ? "#F0EDE8" : "#1C1C1E",
@@ -26,23 +26,23 @@ function History({ setActivePage, activePage = "history", theme = "dark", user, 
     mutedText: isDark ? "#5A5550" : "#B0AAA4",
   };
 
-  useEffect(() => { 
-  if (user) fetchHistory(); 
-}, [user]);
+  useEffect(() => {
+    if (user) fetchHistory();
+  }, [user]);
 
- async function fetchHistory() {
-  setLoading(true);
-  try {
-    const res = await fetch(`http://127.0.0.1:8000/history?user_id=${user.id}`);
-    const data = await res.json();
-    setHistory(data.history || []);
-  } catch {
-    const local = JSON.parse(localStorage.getItem("interviewHistory")) || [];
-    setHistory(local);
-  } finally {
-    setLoading(false);
+  async function fetchHistory() {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`/history`);
+      const data = await res.json();
+      setHistory(data.history || []);
+    } catch {
+      const local = JSON.parse(localStorage.getItem("interviewHistory")) || [];
+      setHistory(local);
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
   async function downloadPDF(item) {
     setDownloading(item.id);
@@ -98,13 +98,6 @@ function History({ setActivePage, activePage = "history", theme = "dark", user, 
     ? Math.max(...history.map(i => i.final_score ?? i.score ?? 0))
     : 0;
 
-  const navItems = [
-    { key: "dashboard",   label: "Dashboard"   },
-    { key: "performance", label: "Performance" },
-    { key: "history",     label: "History"     },
-    { key: "settings",    label: "Settings"    },
-  ];
-
   return (
     <div style={{
       display: "flex",
@@ -117,80 +110,20 @@ function History({ setActivePage, activePage = "history", theme = "dark", user, 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
-        .nav-btn { transition: all 0.18s ease; }
-        .nav-btn:hover { background: ${colors.tableRowHover} !important; }
         .row-item { transition: background 0.15s ease; cursor: default; }
         .row-item:hover { background: ${colors.tableRowHover} !important; }
         .pdf-btn { transition: all 0.18s ease; }
         .pdf-btn:hover { border-color: ${colors.accent} !important; color: ${colors.accent} !important; }
       `}</style>
 
-      {/* Sidebar */}
-      <motion.div
-        initial={{ x: -20, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.3 }}
-        style={{
-          width: 220, minWidth: 220,
-          background: colors.sidebar,
-          borderRight: `1px solid ${colors.sidebarBorder}`,
-          padding: "28px 14px",
-          display: "flex", flexDirection: "column", gap: 4,
-        }}
-      >
-        <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#F0EDE8", marginBottom: 28, paddingLeft: 10 }}>
-          InterviewAI
-        </div>
-
-        {navItems.map((nav) => {
-          const isActive = activePage === nav.key;
-          return (
-            <button key={nav.key} className="nav-btn" onClick={() => setActivePage(nav.key)} style={{
-              width: "100%", padding: "10px 12px",
-              border: "none", borderRadius: 8,
-              background: isActive ? colors.accent : "transparent",
-              color: isActive ? "#fff" : "#9A9590",
-              fontSize: "0.9rem", fontWeight: isActive ? 600 : 400,
-              cursor: "pointer", textAlign: "left",
-            }}>
-              {nav.label}
-            </button>
-          );
-        })}
-
-        <button className="nav-btn" onClick={() => setActivePage("dashboard")} style={{
-          width: "100%", padding: "11px 12px",
-          border: `1px solid ${colors.accent}`,
-          borderRadius: 8, background: "transparent",
-          color: colors.accent, fontSize: "0.9rem", fontWeight: 600,
-          cursor: "pointer", textAlign: "left", marginTop: 8,
-        }}>
-          New Interview
-        </button>
-
-        <div style={{ marginTop: "auto", paddingTop: 20, borderTop: `1px solid ${colors.sidebarBorder}` }}>
-          {user && (
-            <div style={{ color: "#6A6560", fontSize: "0.82rem", marginBottom: 10, paddingLeft: 2 }}>
-              {user.name}
-            </div>
-          )}
-          {onLogout && (
-            <button onClick={onLogout} style={{
-              width: "100%", padding: "10px 12px",
-              border: "1px solid #3a2020", borderRadius: 8,
-              background: "transparent", color: "#C0645A",
-              fontSize: "0.87rem", fontWeight: 500,
-              cursor: "pointer", textAlign: "left",
-              transition: "all 0.18s ease",
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(192,100,90,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >
-              Sign out
-            </button>
-          )}
-        </div>
-      </motion.div>
+      <Sidebar
+        setActivePage={setActivePage}
+        activePage={activePage}
+        theme={theme}
+        user={user}
+        onLogout={onLogout}
+        onNewInterview={() => setActivePage("dashboard")}
+      />
 
       {/* Main */}
       <div style={{ flex: 1, padding: "40px 48px", overflowY: "auto" }}>
