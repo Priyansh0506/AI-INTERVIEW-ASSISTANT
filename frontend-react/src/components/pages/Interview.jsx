@@ -3,7 +3,7 @@ import { useFaceDetection } from "../../hooks/useFaceDetection"
 import SidePanel from "../layouts/SidePanel"
 import { apiFetch } from "../../config/api"
 
-const API = "http://127.0.0.1:8000"
+const API = "https://ai-interview-assistant-2-hgo9.onrender.com"
 
 function getSettings() {
   const stored = localStorage.getItem("interviewSettings")

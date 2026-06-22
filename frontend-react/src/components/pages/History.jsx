@@ -47,7 +47,7 @@ function History({ setActivePage, activePage = "history", theme = "dark", user, 
   async function downloadPDF(item) {
     setDownloading(item.id);
     try {
-      const res = await fetch("http://127.0.0.1:8000/generate-report", {
+      const res = await fetch("https://ai-interview-assistant-2-hgo9.onrender.com/generate-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

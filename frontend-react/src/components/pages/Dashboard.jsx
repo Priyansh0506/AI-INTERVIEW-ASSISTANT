@@ -180,7 +180,7 @@ function Dashboard({
     }
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/start-session?role=${encodeURIComponent(role)}&difficulty=${encodeURIComponent(difficulty)}`,
+        `https://ai-interview-assistant-2-hgo9.onrender.com/start-session?role=${encodeURIComponent(role)}&difficulty=${encodeURIComponent(difficulty)}`,
         { method: "POST" }
       );
       if (!res.ok) throw new Error("Failed to start session");

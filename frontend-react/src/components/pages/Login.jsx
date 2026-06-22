@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const API = "http://127.0.0.1:8000";
+const API = "https://ai-interview-assistant-2-hgo9.onrender.com";
 
 export default function Login({ onLoginSuccess }) {
   const [flipped, setFlipped]               = useState(false);
