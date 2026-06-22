@@ -63,6 +63,10 @@ export default function Login({ onLoginSuccess }) {
 
   async function handleLogin() {
     setLoginError("");
+    if (!loginEmail.includes("@") || !loginEmail.includes(".")) {
+  setLoginError("Please enter a valid email address.");
+  return;
+}
     setLoginLoading(true);
     try {
       const res  = await fetch(`${API}/login`, {
