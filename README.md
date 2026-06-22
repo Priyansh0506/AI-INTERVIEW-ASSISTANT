@@ -32,19 +32,22 @@ responses, tracks facial presence, and generates detailed performance reports af
 ---
 
 ## Project Structure
-
-├── backend/
-│   ├── routes/        # API endpoints
-│   ├── services/      # Gemini AI, scoring logic
-│   ├── database/      # Models, sessions, users
-│   └── main.py        # FastAPI app entry point
-│
-└── frontend-react/
-├── src/
-│   ├── components/ # Pages and layouts
-│   ├── hooks/      # Custom React hooks
-│   └── utils/      # Helper functions
-└── index.html
+AI-INTERVIEW-ASSISTANT/
+backend/
+main.py                  # FastAPI app entry point
+requirements.txt
+routes/                  # API route handlers
+services/                # Gemini AI and scoring logic
+database/                # Models, sessions, users
+utils/                   # Email service, PDF report
+frontend-react/
+src/
+components/          # Pages and layout components
+hooks/               # Custom React hooks
+utils/               # Helper functions
+config/              # API base URL config
+index.html
+vite.config.js
 
 2. Backend setup
 
