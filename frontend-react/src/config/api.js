@@ -4,7 +4,7 @@
 // (see routes/deps.py -> get_current_user_id), so any fetch to them
 // WITHOUT this header will always 401 — use apiFetch for those.
 
-export const API_BASE = import.meta.env.VITE_API_URL || "https://ai-interview-assistant-2-hgo9.onrender.com";
+export const API_BASE = "https://ai-interview-assistant-2-hgo9.onrender.com";
 
 function getToken() {
   try {
