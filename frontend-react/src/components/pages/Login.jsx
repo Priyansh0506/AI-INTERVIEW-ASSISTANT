@@ -91,6 +91,10 @@ export default function Login({ onLoginSuccess }) {
       setSignupError("Password must be at least 6 characters.");
       return;
     }
+    if (!signupEmail.includes("@") || !signupEmail.includes(".")) {
+  setSignupError("Please enter a valid email address.");
+  return;
+}
     setSignupLoading(true);
     try {
       const res  = await fetch(`${API}/signup`, {
