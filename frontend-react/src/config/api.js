@@ -4,7 +4,7 @@
 // (see routes/deps.py -> get_current_user_id), so any fetch to them
 // WITHOUT this header will always 401 — use apiFetch for those.
 
-export const API_BASE = "http://127.0.0.1:8000";
+export const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 function getToken() {
   try {
