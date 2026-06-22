@@ -25,11 +25,13 @@ def startup():
 # allow frontend to talk to backend
 # in production, set ALLOWED_ORIGINS in .env (comma-separated, e.g. https://yourapp.com)
 allowed_origins = os.getenv(
-    "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,https://ai-interview-assistant-umber.vercel.app,https://ai-interview-assistant-git-main-priyansh12.vercel.app"
 ).split(",")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
