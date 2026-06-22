@@ -2,7 +2,7 @@ fastapi
 uvicorn
 python-dotenv
 python-multipart
-pydantic
+pydantic[email]
 google-genai
 sqlalchemy
 python-jose[cryptography]
