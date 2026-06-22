@@ -86,6 +86,17 @@ def init_db():
         )
     """)
 
+    # one-time migration: add streak-tracking columns to users if an
+    # older db file was created before these existed (safe every startup)
+    cursor.execute("PRAGMA table_info(users)")
+    user_cols = [row[1] for row in cursor.fetchall()]
+    if "current_streak" not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN current_streak INTEGER DEFAULT 0")
+    if "longest_streak" not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN longest_streak INTEGER DEFAULT 0")
+    if "last_active_date" not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_active_date TEXT")
+
     # password_resets table — stores password reset tokens
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS password_resets (

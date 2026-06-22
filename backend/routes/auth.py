@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Depends
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
 import secrets
 
 from database.db import get_connection
-from database.users import create_user, authenticate_user, hash_password
+from database.users import create_user, authenticate_user, hash_password, update_streak, get_streak
 from database.sessions import create_login_session, delete_login_session
+from routes.deps import get_current_user_id
 
 from utils.email_service import send_reset_email
 
@@ -39,7 +40,8 @@ def signup(data: SignupRequest):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     token = create_login_session(user_id)
-    return {"id": user_id, "name": data.name, "email": data.email, "token": token}
+    streak = update_streak(user_id)
+    return {"id": user_id, "name": data.name, "email": data.email, "token": token, **streak}
 
 
 @router.post("/login")
@@ -49,7 +51,15 @@ def login(data: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = create_login_session(user["id"])
-    return {**user, "token": token}
+    streak = update_streak(user["id"])
+    return {**user, "token": token, **streak}
+
+
+@router.get("/streak")
+def streak(user_id: int = Depends(get_current_user_id)):
+    """Current logged-in user's daily streak — updated on login or on
+    finishing an interview, whichever happens first each day."""
+    return get_streak(user_id)
 
 
 @router.post("/logout")

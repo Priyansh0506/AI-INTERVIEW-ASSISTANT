@@ -6,6 +6,7 @@ from services.gemini_service import evaluate_answer
 from services.scoring import parse_score, get_communication_score
 from services.nlp_scorer import score_answer
 from database.model import save_interview_result
+from database.users import update_streak
 from routes.deps import get_current_user_id
 
 router = APIRouter()
@@ -119,6 +120,7 @@ def evaluate_interview(request: InterviewRequest, user_id: int = Depends(get_cur
             "user_id": user_id,
         })
         result["history_id"] = history_id   # frontend ko milega PDF ke liye
+        update_streak(user_id)
     except Exception as e:
         print(f"DB save error: {e}")
         result["history_id"] = None
