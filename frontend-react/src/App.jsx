@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "./config/api";
 
 import Login from "./components/pages/Login";
-import ResetPassword from "./components/pages/ResetPassword";
+import ResetPassword from "./components/pages/resetPassword";
 import Interview from "./components/pages/Interview";
 import Report from "./components/pages/Report";
 import Dashboard from "./components/pages/Dashboard";
