@@ -120,6 +120,27 @@ Rules:
     return result
 
 
+def evaluate_answer(question: str, answer: str, role: str) -> str:
+    prompt = f"""You are an expert technical interviewer for a {role} position.
+
+Question: {question}
+Candidate's Answer: {answer}
+
+Evaluate the answer and return ONLY a valid JSON object with this exact structure:
+{{
+  "score": <number 0-10>,
+  "feedback": "<overall feedback in 2-3 sentences>",
+  "good": "<what the candidate did well>",
+  "improve": "<what the candidate should improve>"
+}}
+
+Return ONLY the JSON. No markdown, no explanation."""
+    try:
+        return _generate_with_fallback(prompt, EVAL_MODEL)
+    except:
+        return '{"score": 5, "feedback": "Unable to evaluate.", "good": "Attempted the question.", "improve": "Practice more."}'
+
+
 def generate_evaluation(role: str, answers: list, integrity_score: int, eye_contact_score: float) -> dict:
     answers_text = "\n".join([
         f"Q{i+1}: {a['question']}\nA{i+1}: {a['answer']}"
