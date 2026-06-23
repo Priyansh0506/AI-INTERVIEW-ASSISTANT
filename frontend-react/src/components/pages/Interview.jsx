@@ -96,6 +96,15 @@ function Interview({ role, difficulty, sessionId, question, onResult, theme = "d
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [inputMode, setInputMode] = useState("voice")
   const [manualText, setManualText] = useState("")
+const [hint, setHint] = useState("")
+const [hintLoading, setHintLoading] = useState(false)
+const [showHint, setShowHint] = useState(false)
+const isCodingQuestion = question?.toLowerCase().includes("code") ||
+  question?.toLowerCase().includes("write") ||
+  question?.toLowerCase().includes("implement") ||
+  question?.toLowerCase().includes("algorithm") ||
+  question?.toLowerCase().includes("function") ||
+  question?.toLowerCase().includes("program")
 
   const mediaRecorderRef = useRef(null)
   const chunksRef = useRef([])
@@ -284,6 +293,21 @@ useEffect(() => {
     }
   }
 
+  async function fetchHint() {
+  setHintLoading(true)
+  try {
+    const res = await fetch(`${API}/hint?question=${encodeURIComponent(question)}&role=${encodeURIComponent(role)}`)
+    const data = await res.json()
+    setHint(data.hint)
+    setShowHint(true)
+  } catch {
+    setHint("Think about the core concept!")
+    setShowHint(true)
+  } finally {
+    setHintLoading(false)
+  }
+}
+
   const radius = 26
   const circumference = 2 * Math.PI * radius
   const progress = (timeLeft / TIMER_SECONDS) * circumference
@@ -453,6 +477,41 @@ useEffect(() => {
               </button>
             </div>
           </div>
+
+          {isCodingQuestion && (
+  <div style={{ marginTop: 12, marginBottom: 12 }}>
+    <button
+      onClick={fetchHint}
+      disabled={hintLoading}
+      style={{
+        padding: "8px 16px",
+        background: colors.accentTint,
+        border: `1px solid ${colors.accent}`,
+        borderRadius: 8,
+        color: colors.accent,
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+      }}
+    >
+      {hintLoading ? "Getting hint..." : "💡 Show Hint"}
+    </button>
+    {showHint && (
+      <div style={{
+        marginTop: 10,
+        padding: "12px 16px",
+        background: colors.accentTint,
+        border: `1px solid ${colors.accent}`,
+        borderRadius: 10,
+        color: colors.text,
+        fontSize: 13,
+        lineHeight: 1.6,
+      }}>
+        💡 {hint}
+      </div>
+    )}
+  </div>
+)}
 
           {/* Voice / Type toggle */}
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
