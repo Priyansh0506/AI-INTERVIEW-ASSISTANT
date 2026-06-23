@@ -307,6 +307,7 @@ useEffect(() => {
         @keyframes floatMic { 0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);} }
         @keyframes wave { 0%,100%{height:5px;}50%{height:20px;} }
         @keyframes speakPulse { 0%,100%{opacity:1;}50%{opacity:0.4;} }
+        @keyframes spin { to { transform: rotate(360deg); } }
         button { font-family: inherit; cursor: pointer; }
         .mode-btn { transition: all 0.18s ease; }
         .mode-btn:hover { filter: brightness(1.05); }
@@ -331,6 +332,27 @@ useEffect(() => {
           borderRadius: 16, padding: "24px 26px",
           boxShadow: isDark ? "none" : "0 2px 12px rgba(0,0,0,0.04)",
         }}>
+
+        {loading && (
+  <div style={{
+    position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+    background: "rgba(0,0,0,0.7)",
+    display: "flex", flexDirection: "column",
+    alignItems: "center", justifyContent: "center",
+    zIndex: 9999,
+  }}>
+    <div style={{
+      width: 48, height: 48,
+      border: `4px solid ${colors.accent}33`,
+      borderTop: `4px solid ${colors.accent}`,
+      borderRadius: "50%",
+      animation: "spin 0.8s linear infinite",
+    }} />
+    <p style={{ color: "#fff", marginTop: 16, fontSize: 14 }}>
+      AI is thinking...
+    </p>
+  </div>
+)}
 
           {/* Top row — role, session, question count, timer */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, gap: 12, flexWrap: "wrap" }}>
