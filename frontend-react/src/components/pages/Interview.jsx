@@ -349,7 +349,7 @@ useEffect(() => {
       animation: "spin 0.8s linear infinite",
     }} />
     <p style={{ color: "#fff", marginTop: 16, fontSize: 14 }}>
-      AI is thinking...
+     Hang Tight ...
     </p>
   </div>
 )}

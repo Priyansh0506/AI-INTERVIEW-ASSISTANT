@@ -194,7 +194,7 @@ function Settings({ setActivePage, activePage = "settings", theme: propTheme, on
             description="How many questions you'll be asked per session"
           >
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[1, 3, 5, 10].map(n => (
+              {[1, 3, 5, 10, 15, 20, 25].map(n => (
                 <OptionBtn
                   key={n}
                   label={String(n)}
