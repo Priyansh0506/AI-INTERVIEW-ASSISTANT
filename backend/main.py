@@ -50,3 +50,10 @@ app.include_router(auth_router)
 @app.get("/")
 def home():
     return {"message": "AI Interview Assistant is running!"}
+
+
+@app.get("/hint")
+async def get_hint(question: str, role: str):
+    from services.gemini_service import generate_hint
+    hint = generate_hint(question, role)
+    return {"hint": hint}
