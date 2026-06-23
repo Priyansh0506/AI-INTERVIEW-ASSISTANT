@@ -500,7 +500,7 @@ useEffect(() => {
         cursor: "pointer",
       }}
     >
-      {hintLoading ? "Getting hint..." : showHint ? "🙈 Hide Hint" : "💡 Show Hint"}
+      {hintLoading ? "Getting hint..." : showHint ? " Hide Hint" : "Show Hint"}
     </button>
     {showHint && hint && (
       <div style={{
