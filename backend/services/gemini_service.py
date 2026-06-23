@@ -106,9 +106,10 @@ def _generate_with_fallback(prompt: str, primary_model: str) -> str:
 
     if last_error is not None:
         raise last_error
-    
-    def generate_hint(question: str, role: str) -> str:
-     prompt = f"""
+
+
+def generate_hint(question: str, role: str) -> str:
+    prompt = f"""
     Give a short helpful hint for this interview question for a {role} role.
     Question: {question}
     Rules:
