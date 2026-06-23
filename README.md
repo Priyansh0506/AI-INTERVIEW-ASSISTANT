@@ -67,5 +67,4 @@ npm install
 npm run dev
 
 LIVE DEMO 
-
-coming soon....
+https://ai-interview-assistant-umber.vercel.app
