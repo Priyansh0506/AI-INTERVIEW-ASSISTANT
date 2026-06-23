@@ -478,10 +478,16 @@ useEffect(() => {
             </div>
           </div>
 
-          {isCodingQuestion && (
+ {isCodingQuestion && (
   <div style={{ marginTop: 12, marginBottom: 12 }}>
     <button
-      onClick={fetchHint}
+      onClick={() => {
+        if (!hint) {
+          fetchHint()
+        } else {
+          setShowHint(prev => !prev)
+        }
+      }}
       disabled={hintLoading}
       style={{
         padding: "8px 16px",
@@ -494,9 +500,9 @@ useEffect(() => {
         cursor: "pointer",
       }}
     >
-      {hintLoading ? "Getting hint..." : "💡 Show Hint"}
+      {hintLoading ? "Getting hint..." : showHint ? "🙈 Hide Hint" : "💡 Show Hint"}
     </button>
-    {showHint && (
+    {showHint && hint && (
       <div style={{
         marginTop: 10,
         padding: "12px 16px",
@@ -511,9 +517,7 @@ useEffect(() => {
       </div>
     )}
   </div>
-)}
-
-          {/* Voice / Type toggle */}
+)}          {/* Voice / Type toggle */}
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             <button
               className="mode-btn"
