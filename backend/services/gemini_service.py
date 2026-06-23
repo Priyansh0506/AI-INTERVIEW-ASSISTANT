@@ -97,7 +97,6 @@ def _generate_with_fallback(prompt: str, primary_model: str) -> str:
         keys_tried += 1
         _current_key_index = (_current_key_index + 1) % total_keys
 
-    # Gemini failed — try Groq as final fallback
     try:
         print("Gemini failed, trying Groq fallback...")
         return _groq_generate(prompt)
@@ -108,15 +107,65 @@ def _generate_with_fallback(prompt: str, primary_model: str) -> str:
         raise last_error
 
 
+def generate_question(role: str, difficulty: str) -> str:
+    used_list = ", ".join(list(_used_questions)[-20:]) if _used_questions else "none"
+    prompt = f"""Generate a single technical interview question for a {role} position at {difficulty} difficulty level.
+Previously asked questions (DO NOT repeat): {used_list}
+Rules:
+- Only output the question, nothing else
+- No numbering, no labels, no explanation
+- Make it specific and practical"""
+    result = _generate_with_fallback(prompt, QUESTION_MODEL)
+    _used_questions.add(result[:80])
+    return result
+
+
+def generate_evaluation(role: str, answers: list, integrity_score: int, eye_contact_score: float) -> dict:
+    answers_text = "\n".join([
+        f"Q{i+1}: {a['question']}\nA{i+1}: {a['answer']}"
+        for i, a in enumerate(answers)
+    ])
+    prompt = f"""You are an expert technical interviewer evaluating a candidate for a {role} position.
+
+Interview Answers:
+{answers_text}
+
+Integrity Score: {integrity_score}/100
+Eye Contact Score: {eye_contact_score:.1f}%
+
+Evaluate and return ONLY a valid JSON object with this exact structure:
+{{
+  "overall_score": <number 0-10>,
+  "technical_score": <number 0-10>,
+  "communication_score": <number 0-10>,
+  "confidence_score": <number 0-10>,
+  "strengths": [<3 specific strengths as strings>],
+  "improvements": [<3 specific improvements as strings>],
+  "recommendation": "<Hire / Consider / Reject>",
+  "detailed_feedback": "<2-3 sentence summary>"
+}}
+
+Return ONLY the JSON. No markdown, no explanation."""
+
+    raw = _generate_with_fallback(prompt, EVAL_MODEL)
+    raw = re.sub(r"```(?:json)?", "", raw).strip().strip("```").strip()
+
+    try:
+        return {"result": raw, "status": "success"}
+    except Exception as e:
+        return {
+            "result": '{"overall_score":5,"technical_score":5,"communication_score":5,"confidence_score":5,"strengths":["Attempted all questions"],"improvements":["Need more detail"],"recommendation":"Consider","detailed_feedback":"Unable to parse evaluation."}',
+            "status": "fallback"
+        }
+
+
 def generate_hint(question: str, role: str) -> str:
-    prompt = f"""
-    Give a short helpful hint for this interview question for a {role} role.
-    Question: {question}
-    Rules:
-    - 2-3 sentences only
-    - Don't give the full answer
-    - Just a nudge in the right direction
-    """
+    prompt = f"""Give a short helpful hint for this interview question for a {role} role.
+Question: {question}
+Rules:
+- 2-3 sentences only
+- Don't give the full answer
+- Just a nudge in the right direction"""
     try:
         return _generate_with_fallback(prompt, QUESTION_MODEL)
     except:
