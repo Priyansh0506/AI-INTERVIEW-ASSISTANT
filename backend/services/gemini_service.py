@@ -114,7 +114,11 @@ Previously asked questions (DO NOT repeat): {used_list}
 Rules:
 - Only output the question, nothing else
 - No numbering, no labels, no explanation
-- Make it specific and practical"""
+- Make it specific and practical
+- Mix different types: behavioral, conceptual, situational, system design
+- Do NOT always ask coding questions
+- Example types: "Tell me about a time when...", "How would you explain...", "What is the difference between...", "How would you design..."
+"""
     result = _generate_with_fallback(prompt, QUESTION_MODEL)
     _used_questions.add(result[:80])
     return result
